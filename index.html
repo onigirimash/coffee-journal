@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Our Coffee Journal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Hiragino Kaku Gothic ProN','Hiragino Sans','Noto Sans JP',sans-serif; background: #FAF6F0; color: #2C1A0E; min-height: 100vh; }
@@ -129,6 +131,31 @@ canvas#preview { display: block; width: 100%; border-radius: 8px; border: 1px so
 }
 .entry-del-btn:hover { opacity: 1; color: #B85C38; }
 @media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
+.sync-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: rgba(255,255,255,.7); margin-left: auto;
+}
+.sync-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.4);
+  transition: background .3s;
+}
+.sync-dot.syncing { background: #FAC75A; animation: pulse .8s infinite; }
+.sync-dot.ok      { background: #7DC87D; }
+.sync-dot.error   { background: #F09595; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.loading-overlay {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(250,246,240,.85); align-items: center; justify-content: center;
+  flex-direction: column; gap: 12px;
+}
+.loading-overlay.show { display: flex; }
+.loading-spinner {
+  width: 36px; height: 36px; border: 3px solid #E8D5B8;
+  border-top-color: #8B5A2B; border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; color: #8B5A2B; }
 </style>
 </head>
 <body>
@@ -137,6 +164,10 @@ canvas#preview { display: block; width: 100%; border-radius: 8px; border: 1px so
   <div class="header-top">
     <span>&#9749;</span>
     <h1>Our Coffee Journal</h1>
+    <div class="sync-status">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-text"></span>
+    </div>
   </div>
   <div class="tabs">
     <button class="tab active" onclick="switchTab('new')">+ 新規記録</button>
@@ -241,6 +272,12 @@ canvas#preview { display: block; width: 100%; border-radius: 8px; border: 1px so
 </div>
 </div>
 
+<!-- ローディング -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">データを読み込んでいます...</div>
+</div>
+
 <!-- 編集モーダル -->
 <div class="modal-overlay" id="edit-modal">
   <div class="modal-box">
@@ -316,11 +353,88 @@ canvas#preview { display: block; width: 100%; border-radius: 8px; border: 1px so
 </div>
 
 <script>
-const STORE_KEY='coffee_journal_v1';
-let entries=[], selectedIds=new Set(), currentFilter='all', uploadedImage=null, cardCanvas=null;
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Firebase 設定
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const firebaseConfig = {
+  apiKey: "AIzaSyCbUL8gLkgMNJtyG_TcNbU-_Sfpbni_OTQ",
+  authDomain: "coffee-journal-eb827.firebaseapp.com",
+  projectId: "coffee-journal-eb827",
+  storageBucket: "coffee-journal-eb827.firebasestorage.app",
+  messagingSenderId: "837836757589",
+  appId: "1:837836757589:web:d5ffa6131befca169852dc"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const COLLECTION = 'entries';
 
-function loadEntries(){ try{ entries=JSON.parse(localStorage.getItem(STORE_KEY))||[]; }catch(e){ entries=[]; } }
-function saveEntries(){ localStorage.setItem(STORE_KEY,JSON.stringify(entries)); }
+let entries=[], selectedIds=new Set(), currentFilter='all', uploadedImage=null, cardCanvas=null;
+let unsubscribe = null; // リアルタイムリスナー
+
+// ── Sync状態表示
+function setSyncStatus(state, text=''){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-text');
+  dot.className='sync-dot '+(state==='ok'?'ok':state==='syncing'?'syncing':'error');
+  txt.textContent=text;
+}
+
+// ── ローディング表示
+function showLoading(show){
+  document.getElementById('loading-overlay').classList.toggle('show', show);
+}
+
+// ── Firebaseからリアルタイムで読み込み（リスナー設置）
+function loadEntries(){
+  showLoading(true);
+  setSyncStatus('syncing','同期中...');
+  if(unsubscribe) unsubscribe();
+  unsubscribe = db.collection(COLLECTION)
+    .orderBy('createdAt','desc')
+    .onSnapshot(snapshot=>{
+      entries = snapshot.docs.map(doc=>({...doc.data(), id:doc.id}));
+      showLoading(false);
+      setSyncStatus('ok','同期済み');
+      if(document.getElementById('page-list').classList.contains('active')) renderList();
+    }, err=>{
+      showLoading(false);
+      setSyncStatus('error','エラー');
+      console.error(err);
+    });
+}
+
+// ── Firebaseに保存
+async function saveEntries(entry){
+  setSyncStatus('syncing','保存中...');
+  try {
+    if(entry.id && entry._isUpdate){
+      const {_isUpdate, ...data} = entry;
+      await db.collection(COLLECTION).doc(entry.id).set(data);
+    } else {
+      const {id, ...data} = entry;
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection(COLLECTION).add(data);
+    }
+    setSyncStatus('ok','同期済み');
+  } catch(e){
+    setSyncStatus('error','保存失敗');
+    console.error(e);
+    throw e;
+  }
+}
+
+// ── Firebaseから削除
+async function deleteEntry(id){
+  setSyncStatus('syncing','削除中...');
+  try {
+    await db.collection(COLLECTION).doc(id).delete();
+    setSyncStatus('ok','同期済み');
+  } catch(e){
+    setSyncStatus('error','削除失敗');
+    console.error(e); throw e;
+  }
+}
+
 loadEntries();
 
 function switchTab(tab){
@@ -629,9 +743,15 @@ function generateCard(){
   document.getElementById('preview-area').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
-function saveEntry(){
-  const data=getFormData(); entries.unshift(data); saveEntries();
-  alert('保存しました！一覧タブで確認できます。'); resetForm();
+async function saveEntry(){
+  const data=getFormData();
+  try {
+    await saveEntries(data);
+    alert('保存しました！一覧タブで確認できます。');
+    resetForm();
+  } catch(e) {
+    alert('保存に失敗しました。通信状況を確認してください。');
+  }
 }
 
 function resetForm(){
@@ -689,7 +809,12 @@ function renderList(){
   updateBulkBar();
 }
 
-function toggleFav(id){ const e=entries.find(en=>en.id===id); if(e){ e.fav=!e.fav; saveEntries(); renderList(); } }
+async function toggleFav(id){
+  const e=entries.find(en=>en.id===id); if(!e) return;
+  try {
+    await db.collection(COLLECTION).doc(id).update({fav:!e.fav});
+  } catch(err){ console.error(err); }
+}
 function toggleSelect(id){ selectedIds.has(id)?selectedIds.delete(id):selectedIds.add(id); renderList(); }
 function clearSelection(){ selectedIds.clear(); renderList(); }
 function updateBulkBar(){
@@ -777,20 +902,28 @@ function closeEditModal(){
   document.body.style.overflow=''; editingId=null; modalPhoto=null;
 }
 
-function saveEdit(){
+async function saveEdit(){
   const e=entries.find(en=>en.id===editingId); if(!e) return;
-  e.shop    = document.getElementById('m-shop').value.trim();
-  e.date    = document.getElementById('m-date').value;
-  e.item    = document.getElementById('m-item').value.trim();
-  e.origin  = document.getElementById('m-origin').value.trim();
-  e.process = document.getElementById('m-process').value.trim();
-  e.roast   = document.querySelector('input[name="m-roast"]:checked')?.value||'中煎り';
-  e.flavors = ['m-f1','m-f2','m-f3','m-f4'].map(id=>document.getElementById(id).value.trim());
-  e.values  = ['acidity','bitter','body','sweet','aroma'].map(k=>parseInt(document.getElementById('m-'+k).value));
-  e.memo1   = document.getElementById('m-memo1').value.trim();
-  if(modalPhoto) e.photo=modalPhoto.src;
-  else if(modalPhoto===null && editingId) { /* 写真クリア済みなら null のまま */ }
-  saveEntries(); closeEditModal(); renderList();
+  const updated = {
+    ...e,
+    shop:    document.getElementById('m-shop').value.trim(),
+    date:    document.getElementById('m-date').value,
+    item:    document.getElementById('m-item').value.trim(),
+    origin:  document.getElementById('m-origin').value.trim(),
+    process: document.getElementById('m-process').value.trim(),
+    roast:   document.querySelector('input[name="m-roast"]:checked')?.value||'中煎り',
+    flavors: ['m-f1','m-f2','m-f3','m-f4'].map(id=>document.getElementById(id).value.trim()),
+    values:  ['acidity','bitter','body','sweet','aroma'].map(k=>parseInt(document.getElementById('m-'+k).value)),
+    memo1:   document.getElementById('m-memo1').value.trim(),
+    photo:   modalPhoto ? modalPhoto.src : (modalPhoto===null ? null : e.photo),
+    _isUpdate: true,
+  };
+  try {
+    await saveEntries(updated);
+    closeEditModal();
+  } catch(err) {
+    alert('更新に失敗しました。通信状況を確認してください。');
+  }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -812,10 +945,14 @@ function closeDeleteModal(){
   document.body.style.overflow=''; deletingId=null;
 }
 
-function confirmDelete(){
-  entries=entries.filter(e=>e.id!==deletingId);
-  selectedIds.delete(deletingId);
-  saveEntries(); closeDeleteModal(); renderList();
+async function confirmDelete(){
+  try {
+    await deleteEntry(deletingId);
+    selectedIds.delete(deletingId);
+    closeDeleteModal();
+  } catch(err) {
+    alert('削除に失敗しました。通信状況を確認してください。');
+  }
 }
 
 // オーバーレイ外クリックで閉じる
