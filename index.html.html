@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Our Coffee Journal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Hiragino Kaku Gothic ProN','Hiragino Sans','Noto Sans JP',sans-serif; background: #FAF6F0; color: #2C1A0E; min-height: 100vh; }
+header { background: #4A2C17; color: #fff; padding: 14px 20px 0; position: sticky; top: 0; z-index: 100; }
+.header-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+header h1 { font-size: 17px; font-weight: 500; letter-spacing: .05em; flex: 1; }
+.tabs { display: flex; gap: 2px; }
+.tab { padding: 8px 20px; font-size: 13px; font-family: inherit; background: transparent; color: rgba(255,255,255,.65); border: none; border-radius: 8px 8px 0 0; cursor: pointer; transition: all .15s; }
+.tab.active { background: #FAF6F0; color: #4A2C17; font-weight: 500; }
+.container { max-width: 720px; margin: 0 auto; padding: 20px 16px 72px; }
+.page { display: none; }
+.page.active { display: block; }
+.ui-card { background: #fff; border-radius: 12px; border: 1px solid #E8D5B8; padding: 20px; margin-bottom: 14px; }
+.card-title { font-size: 11px; font-weight: 500; color: #8B5A2B; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #F0E4CE; }
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+.field label { display: block; font-size: 11px; color: #8B5A2B; margin-bottom: 4px; font-weight: 500; letter-spacing: .06em; }
+.field input, .field textarea { width: 100%; padding: 8px 10px; border: 1px solid #E0CEBA; border-radius: 6px; font-size: 14px; font-family: inherit; color: #2C1A0E; background: #FDFAF5; outline: none; transition: border-color .15s; }
+.field input:focus, .field textarea:focus { border-color: #C9956B; }
+.field textarea { resize: vertical; min-height: 68px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.roast-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.roast-opts label { display: flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid #E0CEBA; border-radius: 20px; font-size: 12px; cursor: pointer; background: #FDFAF5; transition: all .1s; color: #2C1A0E; }
+.roast-opts input[type=radio] { display: none; }
+.roast-opts label:has(input:checked) { background: #4A2C17; border-color: #4A2C17; color: #fff; }
+.photo-upload { border: 2px dashed #D4B896; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; background: #FDFAF5; transition: all .15s; position: relative; overflow: hidden; }
+.photo-upload:hover { border-color: #C9956B; background: #FAF3E8; }
+.photo-upload input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.photo-upload .ph-icon { font-size: 26px; margin-bottom: 6px; }
+.photo-upload .ph-label { font-size: 12px; color: #8B5A2B; }
+.photo-preview-wrap { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #E0CEBA; }
+.photo-preview-wrap img { display: block; width: 100%; height: 140px; object-fit: cover; }
+.photo-clear { position: absolute; top: 6px; right: 6px; background: rgba(44,26,14,.65); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.slider-row label { width: 36px; font-size: 12px; color: #8B5A2B; font-weight: 500; flex-shrink: 0; }
+.slider-row input[type=range] { flex: 1; accent-color: #C9956B; }
+.slider-row .val { width: 18px; font-size: 13px; font-weight: 500; color: #4A2C17; text-align: right; flex-shrink: 0; }
+.btn-primary { display: block; width: 100%; padding: 13px; background: #4A2C17; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-family: inherit; font-weight: 500; cursor: pointer; letter-spacing: .04em; transition: background .15s; }
+.btn-primary:hover { background: #3A2010; }
+.btn-secondary { display: block; width: 100%; padding: 11px; background: #fff; color: #4A2C17; border: 1.5px solid #C9956B; border-radius: 8px; font-size: 14px; font-family: inherit; font-weight: 500; cursor: pointer; transition: all .15s; }
+.btn-secondary:hover { background: #FAF3E8; }
+#preview-area { display: none; margin-top: 20px; }
+#preview-area.visible { display: block; }
+.preview-label { font-size: 11px; color: #8B5A2B; margin-bottom: 8px; font-weight: 500; letter-spacing: .06em; }
+canvas#preview { display: block; width: 100%; border-radius: 8px; border: 1px solid #E0CEBA; background: #fff; }
+.btn-row { display: flex; gap: 10px; margin-top: 10px; }
+.btn-row .btn-primary, .btn-row .btn-secondary { margin: 0; flex: 1; }
+.list-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.filter-btn { padding: 5px 12px; font-size: 12px; font-family: inherit; border: 1px solid #E0CEBA; border-radius: 20px; background: #fff; color: #8B5A2B; cursor: pointer; transition: all .1s; }
+.filter-btn.active { background: #4A2C17; border-color: #4A2C17; color: #fff; }
+.list-count { font-size: 12px; color: #8B5A2B; margin-left: auto; }
+.entry-list { display: flex; flex-direction: column; gap: 10px; }
+.entry-card { background: #fff; border: 1px solid #E8D5B8; border-radius: 10px; display: flex; align-items: stretch; overflow: hidden; transition: border-color .15s; }
+.entry-card.selected { border-color: #C9956B; border-width: 2px; }
+.entry-thumb { width: 72px; flex-shrink: 0; background: #F5EBD8; display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden; }
+.entry-thumb img { width: 72px; height: 100%; object-fit: cover; }
+.entry-body { flex: 1; padding: 10px 12px; min-width: 0; }
+.entry-shop { font-size: 13px; font-weight: 500; color: #2C1A0E; margin-bottom: 2px; }
+.entry-item { font-size: 11px; color: #8B5A2B; margin-bottom: 4px; }
+.entry-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.entry-date { font-size: 11px; color: #C9956B; }
+.entry-roast { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #F5EBD8; color: #4A2C17; font-weight: 500; }
+.entry-memo { font-size: 11px; color: #888; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry-actions { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 10px 12px; flex-shrink: 0; }
+.fav-btn { background: none; border: none; font-size: 20px; cursor: pointer; opacity: .3; transition: all .15s; line-height: 1; color: #C9956B; }
+.fav-btn.on { opacity: 1; }
+.sel-check { width: 20px; height: 20px; border-radius: 5px; border: 1.5px solid #E0CEBA; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .1s; flex-shrink: 0; }
+.sel-check.checked { background: #4A2C17; border-color: #4A2C17; }
+.sel-check.checked::after { content: '✓'; color: #fff; font-size: 12px; }
+.empty-state { text-align: center; padding: 48px 20px; }
+.empty-state .es-icon { font-size: 40px; margin-bottom: 12px; }
+.empty-state .es-text { font-size: 14px; color: #8B5A2B; }
+.bulk-bar { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #4A2C17; color: #fff; border-radius: 14px; padding: 12px 18px; flex-direction: row; align-items: center; gap: 10px; box-shadow: 0 4px 24px rgba(74,44,23,.35); min-width: 300px; max-width: 90vw; z-index: 200; }
+.bulk-bar.visible { display: flex; }
+.bulk-bar span { font-size: 13px; flex: 1; }
+.bulk-btn { padding: 7px 14px; font-size: 12px; font-family: inherit; font-weight: 500; border: 1.5px solid rgba(255,255,255,.5); border-radius: 8px; background: transparent; color: #fff; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.bulk-btn:hover { background: rgba(255,255,255,.15); }
+.bulk-btn.accent { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.8); }
+
+/* ── モーダル */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(44,26,14,.45); align-items: center; justify-content: center; padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: #fff; border-radius: 14px; width: 100%; max-width: 480px;
+  max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(44,26,14,.25);
+}
+.modal-header {
+  display: flex; align-items: center; padding: 16px 20px 0;
+  border-bottom: 1px solid #F0E4CE; margin-bottom: 16px; padding-bottom: 12px;
+}
+.modal-header h2 { font-size: 15px; font-weight: 500; flex: 1; color: #2C1A0E; }
+.modal-close {
+  background: none; border: none; font-size: 18px; cursor: pointer;
+  color: #8B5A2B; padding: 4px 8px; border-radius: 6px; line-height: 1;
+}
+.modal-close:hover { background: #FAF3E8; }
+.modal-body { padding: 0 20px 20px; }
+.modal-footer { display: flex; gap: 10px; padding: 0 20px 20px; }
+.modal-footer .btn-primary, .modal-footer .btn-secondary { margin: 0; flex: 1; }
+/* 削除確認 */
+.modal-confirm-text { font-size: 14px; color: #2C1A0E; line-height: 1.7; margin-bottom: 6px; }
+.modal-confirm-sub  { font-size: 12px; color: #8B5A2B; }
+.btn-danger {
+  display: block; width: 100%; padding: 11px; background: #B85C38; color: #fff;
+  border: none; border-radius: 8px; font-size: 14px; font-family: inherit;
+  font-weight: 500; cursor: pointer; transition: background .15s; flex: 1;
+}
+.btn-danger:hover { background: #A04E2E; }
+/* エントリカードのアクションボタン */
+.entry-edit-btn {
+  background: none; border: 1px solid #E0CEBA; border-radius: 6px;
+  font-size: 11px; color: #8B5A2B; padding: 3px 8px;
+  cursor: pointer; font-family: inherit; transition: all .1s; white-space: nowrap;
+}
+.entry-edit-btn:hover { background: #FAF3E8; border-color: #C9956B; }
+.entry-del-btn {
+  background: none; border: none; font-size: 14px; cursor: pointer;
+  color: #C9956B; opacity: .5; transition: opacity .15s; line-height: 1;
+}
+.entry-del-btn:hover { opacity: 1; color: #B85C38; }
+@media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <span>&#9749;</span>
+    <h1>Our Coffee Journal</h1>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('new')">+ 新規記録</button>
+    <button class="tab" onclick="switchTab('list')">&#9776; 一覧</button>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- ══ 新規記録 ══ -->
+<div id="page-new" class="page active">
+
+  <div class="ui-card">
+    <div class="card-title">写真</div>
+    <div id="photo-upload-area">
+      <div class="photo-upload">
+        <input type="file" id="photo-input" accept="image/*">
+        <div class="ph-icon">📷</div>
+        <div class="ph-label">タップして写真を選択<br><span style="color:#C9956B;font-size:11px">JPG / PNG 対応</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ui-card">
+    <div class="card-title">基本情報</div>
+    <div class="grid2">
+      <div class="field"><label>SHOP — お店</label><input type="text" id="shop" placeholder="例：猿田彦珈琲"></div>
+      <div class="field"><label>DATE — 日付</label><input type="date" id="date"></div>
+    </div>
+    <div class="field"><label>ITEM — 商品名 / 豆の名前</label><input type="text" id="item" placeholder="例：エチオピア イルガチェフェ"></div>
+    <div class="grid2">
+      <div class="field"><label>ORIGIN — 産地</label><input type="text" id="origin" placeholder="例：エチオピア"></div>
+      <div class="field"><label>PROCESS — 精製方法</label><input type="text" id="process" placeholder="例：ウォッシュド"></div>
+    </div>
+    <div class="field">
+      <label>ROAST — 焙煎度</label>
+      <div class="roast-opts">
+        <label><input type="radio" name="roast" value="浅煎り"><span>浅煎り</span></label>
+        <label><input type="radio" name="roast" value="中浅煎り"><span>中浅煎り</span></label>
+        <label><input type="radio" name="roast" value="中煎り" checked><span>中煎り</span></label>
+        <label><input type="radio" name="roast" value="中深煎り"><span>中深煎り</span></label>
+        <label><input type="radio" name="roast" value="深煎り"><span>深煎り</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="ui-card">
+    <div class="card-title">フレーバーノート</div>
+    <div class="grid2">
+      <div class="field"><label>フレーバー 1</label><input type="text" id="f1" placeholder="例：ブルーベリー"></div>
+      <div class="field"><label>フレーバー 2</label><input type="text" id="f2" placeholder="例：ジャスミン"></div>
+      <div class="field"><label>フレーバー 3</label><input type="text" id="f3" placeholder="例：ダークチョコ"></div>
+      <div class="field"><label>フレーバー 4</label><input type="text" id="f4" placeholder="例：キャラメル"></div>
+    </div>
+  </div>
+
+  <div class="ui-card">
+    <div class="card-title">テイスト — 5段階で評価</div>
+    <div class="slider-row"><label>酸味</label><input type="range" id="s-acidity" min="1" max="5" step="1" value="3"><span class="val" id="v-acidity">3</span></div>
+    <div class="slider-row"><label>苦味</label><input type="range" id="s-bitter"  min="1" max="5" step="1" value="3"><span class="val" id="v-bitter">3</span></div>
+    <div class="slider-row"><label>コク</label><input type="range" id="s-body"    min="1" max="5" step="1" value="3"><span class="val" id="v-body">3</span></div>
+    <div class="slider-row"><label>甘み</label><input type="range" id="s-sweet"   min="1" max="5" step="1" value="3"><span class="val" id="v-sweet">3</span></div>
+    <div class="slider-row"><label>香り</label><input type="range" id="s-aroma"   min="1" max="5" step="1" value="3"><span class="val" id="v-aroma">3</span></div>
+    <canvas id="radar" width="260" height="200" style="display:block;margin:14px auto 0;"></canvas>
+  </div>
+
+  <div class="ui-card">
+    <div class="card-title">メモ / 感想</div>
+    <div class="field" style="margin:0"><label>MEMO</label><textarea id="memo1" placeholder="飲んだ感想、気づきなど..." style="min-height:88px"></textarea></div>
+  </div>
+
+  <button class="btn-primary" onclick="generateCard()">&#9749; カードをプレビュー</button>
+
+  <div id="preview-area">
+    <div class="preview-label">PREVIEW</div>
+    <canvas id="preview"></canvas>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="saveEntry()">&#10003; 保存する</button>
+      <button class="btn-secondary" onclick="downloadCurrentPDF()">PDF ダウンロード</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ 一覧 ══ -->
+<div id="page-list" class="page">
+
+  <div class="list-toolbar">
+    <button class="filter-btn active" onclick="setFilter('all',this)">すべて</button>
+    <button class="filter-btn" onclick="setFilter('fav',this)">★ お気に入り</button>
+    <span class="list-count" id="list-count"></span>
+  </div>
+
+  <div class="entry-list" id="entry-list"></div>
+
+  <div class="bulk-bar" id="bulk-bar">
+    <span id="bulk-label">0件選択中</span>
+    <button class="bulk-btn accent" onclick="exportSelectedPDF()">&#8681; まとめてPDF</button>
+    <button class="bulk-btn" onclick="clearSelection()">✕ 解除</button>
+  </div>
+
+</div>
+</div>
+
+<!-- 編集モーダル -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>記録を編集</h2>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-photo-area">
+        <div class="photo-upload" style="margin-bottom:14px">
+          <input type="file" id="modal-photo-input" accept="image/*">
+          <div class="ph-icon">📷</div>
+          <div class="ph-label">タップして写真を変更<br><span style="color:#C9956B;font-size:11px">JPG / PNG 対応</span></div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-bottom:12px">
+        <div class="field"><label>SHOP</label><input type="text" id="m-shop"></div>
+        <div class="field"><label>DATE</label><input type="date" id="m-date"></div>
+      </div>
+      <div class="field"><label>ITEM</label><input type="text" id="m-item"></div>
+      <div class="grid2" style="margin-bottom:12px">
+        <div class="field"><label>ORIGIN</label><input type="text" id="m-origin"></div>
+        <div class="field"><label>PROCESS</label><input type="text" id="m-process"></div>
+      </div>
+      <div class="field">
+        <label>ROAST</label>
+        <div class="roast-opts">
+          <label><input type="radio" name="m-roast" value="浅煎り"><span>浅煎り</span></label>
+          <label><input type="radio" name="m-roast" value="中浅煎り"><span>中浅煎り</span></label>
+          <label><input type="radio" name="m-roast" value="中煎り"><span>中煎り</span></label>
+          <label><input type="radio" name="m-roast" value="中深煎り"><span>中深煎り</span></label>
+          <label><input type="radio" name="m-roast" value="深煎り"><span>深煎り</span></label>
+        </div>
+      </div>
+      <div class="grid2" style="margin:12px 0">
+        <div class="field"><label>フレーバー 1</label><input type="text" id="m-f1"></div>
+        <div class="field"><label>フレーバー 2</label><input type="text" id="m-f2"></div>
+        <div class="field"><label>フレーバー 3</label><input type="text" id="m-f3"></div>
+        <div class="field"><label>フレーバー 4</label><input type="text" id="m-f4"></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <div class="slider-row"><label>酸味</label><input type="range" id="m-acidity" min="1" max="5" step="1" value="3"><span class="val" id="mv-acidity">3</span></div>
+        <div class="slider-row"><label>苦味</label><input type="range" id="m-bitter"  min="1" max="5" step="1" value="3"><span class="val" id="mv-bitter">3</span></div>
+        <div class="slider-row"><label>コク</label><input type="range"  id="m-body"    min="1" max="5" step="1" value="3"><span class="val" id="mv-body">3</span></div>
+        <div class="slider-row"><label>甘み</label><input type="range" id="m-sweet"   min="1" max="5" step="1" value="3"><span class="val" id="mv-sweet">3</span></div>
+        <div class="slider-row"><label>香り</label><input type="range" id="m-aroma"   min="1" max="5" step="1" value="3"><span class="val" id="mv-aroma">3</span></div>
+      </div>
+      <div class="field"><label>MEMO</label><textarea id="m-memo1" style="min-height:60px"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn-primary" onclick="saveEdit()">&#10003; 保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 削除確認モーダル -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal-box" style="max-width:360px">
+    <div class="modal-header">
+      <h2>記録を削除</h2>
+      <button class="modal-close" onclick="closeDeleteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-confirm-text" id="delete-confirm-text">この記録を削除しますか？</p>
+      <p class="modal-confirm-sub">削除したデータは元に戻せません。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeDeleteModal()">キャンセル</button>
+      <button class="btn-danger" onclick="confirmDelete()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORE_KEY='coffee_journal_v1';
+let entries=[], selectedIds=new Set(), currentFilter='all', uploadedImage=null, cardCanvas=null;
+
+function loadEntries(){ try{ entries=JSON.parse(localStorage.getItem(STORE_KEY))||[]; }catch(e){ entries=[]; } }
+function saveEntries(){ localStorage.setItem(STORE_KEY,JSON.stringify(entries)); }
+loadEntries();
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',(tab==='new'?i===0:i===1)));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(tab==='new'?'page-new':'page-list').classList.add('active');
+  if(tab==='list') renderList();
+}
+
+function bindPhotoInput(){
+  const inp=document.getElementById('photo-input');
+  if(!inp) return;
+  inp.addEventListener('change',function(e){
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      const img=new Image();
+      img.onload=function(){
+        uploadedImage=img; uploadedImage._src=ev.target.result;
+        document.getElementById('photo-upload-area').innerHTML=
+          `<div class="photo-preview-wrap"><img src="${ev.target.result}" alt="photo"><button class="photo-clear" onclick="clearPhoto()">✕</button></div>`;
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function clearPhoto(){
+  uploadedImage=null;
+  document.getElementById('photo-upload-area').innerHTML=
+    `<div class="photo-upload"><input type="file" id="photo-input" accept="image/*"><div class="ph-icon">📷</div><div class="ph-label">タップして写真を選択<br><span style="color:#C9956B;font-size:11px">JPG / PNG 対応</span></div></div>`;
+  bindPhotoInput();
+}
+bindPhotoInput();
+
+['acidity','bitter','body','sweet','aroma'].forEach(k=>{
+  document.getElementById('s-'+k).addEventListener('input',function(){
+    document.getElementById('v-'+k).textContent=this.value; drawRadarPreview();
+  });
+});
+document.getElementById('date').value=new Date().toISOString().slice(0,10);
+
+const RLABELS=['酸味','苦味','コク','甘み','香り'];
+function getValues(){ return ['acidity','bitter','body','sweet','aroma'].map(k=>parseInt(document.getElementById('s-'+k).value)); }
+
+function drawRadarChart(ctx,cx,cy,r,values){
+  const n=5, angles=Array.from({length:n},(_,i)=>Math.PI/2+2*Math.PI*i/n);
+  for(let lv=1;lv<=5;lv++){
+    ctx.beginPath();
+    angles.forEach((a,i)=>{ const x=cx+r*(lv/5)*Math.cos(a),y=cy-r*(lv/5)*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.closePath(); ctx.strokeStyle=lv===5?'#BEA07A':(lv%2===0?'#D4BFA4':'#E2D0BA'); ctx.lineWidth=lv===5?1.2:0.7; ctx.stroke();
+  }
+  angles.forEach(a=>{ ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+r*Math.cos(a),cy-r*Math.sin(a)); ctx.strokeStyle='#D0B898'; ctx.lineWidth=0.6; ctx.stroke(); });
+  if(values){
+    ctx.beginPath();
+    angles.forEach((a,i)=>{ const rt=values[i]/5,x=cx+r*rt*Math.cos(a),y=cy-r*rt*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.closePath(); ctx.fillStyle='rgba(201,149,107,.25)'; ctx.fill(); ctx.strokeStyle='#C9956B'; ctx.lineWidth=1.5; ctx.stroke();
+    angles.forEach((a,i)=>{ ctx.beginPath(); ctx.arc(cx+r*(values[i]/5)*Math.cos(a),cy-r*(values[i]/5)*Math.sin(a),3,0,Math.PI*2); ctx.fillStyle='#8B5A2B'; ctx.fill(); });
+  }
+  ctx.font='11px sans-serif'; ctx.fillStyle='#4A2C17'; ctx.textBaseline='middle';
+  angles.forEach((a,i)=>{ const lx=cx+(r+14)*Math.cos(a),ly=cy-(r+14)*Math.sin(a); ctx.textAlign=Math.abs(Math.cos(a))<.15?'center':(Math.cos(a)>0?'left':'right'); ctx.fillText(RLABELS[i],lx,ly); });
+}
+function drawRadarPreview(){ const cv=document.getElementById('radar'),ctx=cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height); drawRadarChart(ctx,cv.width/2,cv.height/2+4,Math.min(cv.width,cv.height)*.33,getValues()); }
+drawRadarPreview();
+
+const CARD_W=559,CARD_H=378,MM=3.779;
+const C={espresso:'#2C1A0E',roast:'#4A2C17',caramel:'#8B5A2B',latte:'#C9956B',cream:'#F5EBD8',milk:'#FBF6EE',white:'#ffffff'};
+const RC={'浅煎り':'#7D8C6B','中浅煎り':'#8B5A2B','中煎り':'#C9956B','中深煎り':'#B85C38','深煎り':'#4A2C17'};
+
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath(); }
+function trunc(ctx,t,mw){ if(ctx.measureText(t).width<=mw) return t; while(t.length>0&&ctx.measureText(t+'…').width>mw) t=t.slice(0,-1); return t+'…'; }
+
+function buildCardCanvas(data,imgEl){
+  const cv=document.createElement('canvas');
+  cv.width=CARD_W*2; cv.height=CARD_H*2;
+  const ctx=cv.getContext('2d');
+  ctx.scale(2,2);
+  const W=CARD_W, H=CARD_H, pad=5*MM;
+
+  // canvasはY=0が上端、Y=Hが下端
+  // 背景・外枠
+  ctx.fillStyle=C.white; rr(ctx,0,0,W,H,4*MM); ctx.fill();
+  ctx.strokeStyle=C.latte; ctx.lineWidth=1; rr(ctx,.5,.5,W-1,H-1,4*MM); ctx.stroke();
+
+  // 下部バー（Y=H-bH〜H）
+  const bH=7*MM;
+  ctx.fillStyle=C.roast; rr(ctx,0,H-bH,W,bH,4*MM); ctx.fill();
+  ctx.fillRect(0,H-bH,W,bH*0.5);
+  ctx.fillStyle=C.white;
+  ctx.font=`500 ${5.5*MM}px serif`; ctx.textBaseline='middle'; ctx.textAlign='left';
+  ctx.fillText('Our Coffee Journal',pad,H-bH/2);
+  ctx.font=`${5.5*MM}px sans-serif`; ctx.textAlign='right';
+  ctx.fillText('☕',W-pad,H-bH/2);
+
+  // 内部4象限の基準座標
+  // TOP=上端Y値（小さい）, BOT=下端Y値（大きい・バーの上）
+  const TOP=pad, BOT=H-bH-pad;
+  const LFT=pad, RGT=W-pad;
+  const totalW=RGT-LFT, totalH=BOT-TOP;
+  const gap=1.5*MM;
+
+  // 上下の境界（上から45%の位置＝上ブロックが45%、下ブロックが55%）
+  const midY=TOP+totalH*0.45;
+  // 左右の境界（左から48%）
+  const midX=LFT+totalW*0.48;
+
+  // 4ブロックのY/X座標を明示
+  // 左上: X=LFT〜midX,  Y=TOP〜midY
+  // 右上: X=midX〜RGT,  Y=TOP〜midY
+  // 左下: X=LFT〜midX,  Y=midY〜BOT
+  // 右下: X=midX〜RGT,  Y=midY〜BOT
+
+  const BLK={
+    tl:{ x:LFT+gap,      y:TOP+gap,      w:midX-LFT-gap*2, h:midY-TOP-gap*2 },
+    tr:{ x:midX+gap,     y:TOP+gap,      w:RGT-midX-gap*2, h:midY-TOP-gap*2 },
+    bl:{ x:LFT+gap,      y:midY+gap,     w:midX-LFT-gap*2, h:BOT-midY-gap*2 },
+    br:{ x:midX+gap,     y:midY+gap,     w:RGT-midX-gap*2, h:BOT-midY-gap*2 },
+  };
+
+  // セクションラベルバッジ（左上寄せ）
+  function sLbl(t,bx,by){
+    ctx.fillStyle=C.caramel;
+    rr(ctx,bx,by,18*MM,3.8*MM,1.5*MM); ctx.fill();
+    ctx.fillStyle=C.white; ctx.font=`500 ${2.8*MM}px sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(t,bx+9*MM,by+1.9*MM);
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 左上：写真
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const {x:px,y:py,w:pw,h:ph}=BLK.tl;
+  ctx.fillStyle=C.cream; rr(ctx,px,py,pw,ph,2*MM); ctx.fill();
+  if(imgEl){
+    ctx.save(); rr(ctx,px,py,pw,ph,2*MM); ctx.clip();
+    const iw=imgEl.naturalWidth||imgEl.width, ih=imgEl.naturalHeight||imgEl.height;
+    const sc=Math.max(pw/iw,ph/ih);
+    ctx.drawImage(imgEl,px+(pw-iw*sc)/2,py+(ph-ih*sc)/2,iw*sc,ih*sc);
+    ctx.restore();
+    ctx.strokeStyle=C.latte; ctx.lineWidth=0.8; rr(ctx,px,py,pw,ph,2*MM); ctx.stroke();
+  } else {
+    ctx.strokeStyle=C.latte; ctx.lineWidth=0.8;
+    ctx.setLineDash([3,3]); rr(ctx,px,py,pw,ph,2*MM); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font=`${8*MM}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle=C.latte; ctx.fillText('📷',px+pw/2,py+ph/2-1*MM);
+    ctx.font=`${3*MM}px sans-serif`; ctx.fillStyle=C.caramel;
+    ctx.fillText('PHOTO',px+pw/2,py+ph/2+5*MM);
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 右上：基本情報
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const {x:ix,y:iy,w:iw2,h:ih2}=BLK.tr;
+  ctx.fillStyle=C.milk; rr(ctx,ix,iy,iw2,ih2,2*MM); ctx.fill();
+
+  // 焙煎バッジ（右上角）
+  ctx.fillStyle=RC[data.roast]||C.caramel;
+  rr(ctx,ix+iw2-20*MM,iy+2*MM,17*MM,4.5*MM,1.5*MM); ctx.fill();
+  ctx.fillStyle=C.white; ctx.font=`500 ${3*MM}px sans-serif`; ctx.textAlign='center';
+  ctx.textBaseline='middle'; ctx.fillText(data.roast,ix+iw2-11.5*MM,iy+4.5*MM);
+
+  // フィールド描画：ラベル → 下線 → 値（下線の上）。文字が長ければ縮小
+  function drawField(lb,vl,fx,fy,fw){
+    ctx.textBaseline='alphabetic';
+    ctx.font=`${2.6*MM}px sans-serif`; ctx.fillStyle=C.caramel; ctx.textAlign='left';
+    ctx.fillText(lb,fx,fy);
+    const lineY=fy+4.2*MM;
+    ctx.strokeStyle=C.latte; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.moveTo(fx,lineY); ctx.lineTo(fx+fw,lineY); ctx.stroke();
+    if(!vl) return;
+    let fs=3.2*MM;
+    ctx.font=`${fs}px sans-serif`;
+    while(ctx.measureText(vl).width>fw-1 && fs>1.8*MM){
+      fs-=0.15*MM; ctx.font=`${fs}px sans-serif`;
+    }
+    ctx.fillStyle=C.espresso; ctx.textAlign='left';
+    ctx.fillText(vl,fx,lineY-1.2*MM);
+  }
+
+  const fPad=2.5*MM, fW=iw2-fPad*2;
+  const badgeH=7.5*MM;
+  const flds=[
+    ['SHOP',   data.shop||''],
+    ['ITEM',   data.item||''],
+    ['DATE',   (data.date||'').replace(/-/g,'/')],
+    ['ORIGIN', (data.origin||'')+(data.process?' / '+data.process:'')],
+  ];
+  const fRowH=(ih2-badgeH)/flds.length;
+  flds.forEach(([lb,vl],i)=>{
+    const fy=iy+badgeH+i*fRowH+1.8*MM;
+    drawField(lb,vl,ix+fPad,fy,fW);
+  });
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 左下：FLAVOR（上半分）+ MEMO（下半分）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const {x:nx,y:ny,w:nw,h:nh}=BLK.bl;
+  ctx.fillStyle=C.milk; rr(ctx,nx,ny,nw,nh,2*MM); ctx.fill();
+
+  const halfH=nh/2;
+  // FLAVOR: Y=ny 〜 ny+halfH（上半分）
+  const flTop=ny, flBot=ny+halfH;
+  // MEMO:   Y=ny+halfH 〜 ny+nh（下半分）
+  const moTop=ny+halfH, moBot=ny+nh;
+
+  // FLAVOR ラベル（上半分の左上）
+  sLbl('FLAVOR',nx+2*MM,flTop+2*MM);
+
+  // フレーバータグ（入力ありのみ表示）
+  const activeFlavors=(data.flavors||[]).filter(f=>f&&f.trim()!='');
+  if(activeFlavors.length>0){
+    const tCols=2, tH=4.5*MM, tGap=1.5*MM;
+    const tW=(nw-2*fPad-(tCols-1)*tGap)/tCols;
+    const tagStartY=flTop+6.5*MM; // ラベルの下から
+    activeFlavors.forEach((fl,ti)=>{
+      const ci=ti%tCols, ri=Math.floor(ti/tCols);
+      const tx=nx+fPad+ci*(tW+tGap);
+      const ty=tagStartY+ri*(tH+tGap);
+      if(ty+tH>flBot-1*MM) return;
+      ctx.fillStyle=C.white; ctx.strokeStyle='#D4B896'; ctx.lineWidth=0.6;
+      rr(ctx,tx,ty,tW,tH,1.5*MM); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=C.espresso; ctx.font=`${3*MM}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(fl,tx+tW/2,ty+tH/2);
+    });
+  }
+
+  // 上下区切り線（点線）
+  ctx.strokeStyle=C.latte; ctx.lineWidth=0.4; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(nx+2*MM,ny+halfH); ctx.lineTo(nx+nw-2*MM,ny+halfH); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // MEMO ラベル（下半分の左上）
+  sLbl('MEMO',nx+2*MM,moTop+2*MM);
+
+  // メモ本文（折り返し・縮小対応）
+  const memo=data.memo1||'';
+  if(memo){
+    const mxL=nx+fPad, mxR=nx+nw-fPad, lineW=mxR-mxL;
+    const availH=moBot-moTop-7*MM; // ラベル分を除いた高さ
+    function wrapText(text,maxW,fontSize){
+      ctx.font=`${fontSize}px sans-serif`;
+      const lines=[];
+      let cur='';
+      for(const ch of text){
+        if(ctx.measureText(cur+ch).width>maxW && cur!=''){
+          lines.push(cur); cur=ch;
+        } else cur+=ch;
+      }
+      if(cur) lines.push(cur);
+      return lines;
+    }
+    let fs=3*MM;
+    let lines=wrapText(memo,lineW,fs);
+    while(lines.length*fs*1.6>availH && fs>1.6*MM){
+      fs-=0.1*MM; lines=wrapText(memo,lineW,fs);
+    }
+    ctx.fillStyle=C.espresso; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    const startY=moTop+8.5*MM;
+    lines.forEach((ln,i)=>{ ctx.fillText(ln,mxL,startY+i*fs*1.6); });
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 右下：レーダーチャート
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const {x:rx,y:ry,w:rw,h:rh}=BLK.br;
+  ctx.fillStyle=C.white; rr(ctx,rx,ry,rw,rh,2*MM); ctx.fill();
+  ctx.strokeStyle='#E2D0BA'; ctx.lineWidth=0.5; rr(ctx,rx,ry,rw,rh,2*MM); ctx.stroke();
+
+  // TASTE ラベル（左上）
+  sLbl('TASTE',rx+2*MM,ry+2*MM);
+
+  // チャート：ラベル下〜スケール表示上の領域中央
+  const scaleH=4*MM;
+  const chartTop=ry+7*MM; // ラベルの下
+  const chartBot=ry+rh-scaleH-1*MM;
+  const rcx=rx+rw/2, rcy=(chartTop+chartBot)/2;
+  const rad=Math.min(rw/2,(chartBot-chartTop)/2)-6*MM;
+  drawRadarChart(ctx,rcx,rcy,Math.max(rad,8*MM),data.values);
+
+  // スケール表示（チャートの下）
+  ctx.font=`${2.4*MM}px sans-serif`; ctx.fillStyle='#C4A07A';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('1 — 2 — 3 — 4 — 5',rcx,ry+rh-2*MM);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 区切り線（縦・横）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ctx.strokeStyle=C.latte; ctx.lineWidth=0.5; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(midX,TOP+2*MM); ctx.lineTo(midX,BOT-2*MM); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(LFT+2*MM,midY); ctx.lineTo(RGT-2*MM,midY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  return cv;
+}
+
+function getFormData(){
+  return { id:Date.now().toString(), shop:document.getElementById('shop').value.trim(), date:document.getElementById('date').value, item:document.getElementById('item').value.trim(), origin:document.getElementById('origin').value.trim(), process:document.getElementById('process').value.trim(), roast:document.querySelector('input[name=roast]:checked')?.value||'中煎り', flavors:['f1','f2','f3','f4'].map(id=>document.getElementById(id).value.trim()), values:getValues(), memo1:document.getElementById('memo1').value.trim(), photo:uploadedImage?._src||null, fav:false };
+}
+
+function generateCard(){
+  const data=getFormData(); cardCanvas=buildCardCanvas(data,uploadedImage);
+  const prev=document.getElementById('preview'); prev.width=cardCanvas.width; prev.height=cardCanvas.height; prev.style.maxWidth='100%';
+  prev.getContext('2d').drawImage(cardCanvas,0,0);
+  document.getElementById('preview-area').classList.add('visible');
+  document.getElementById('preview-area').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function saveEntry(){
+  const data=getFormData(); entries.unshift(data); saveEntries();
+  alert('保存しました！一覧タブで確認できます。'); resetForm();
+}
+
+function resetForm(){
+  ['shop','item','origin','process','f1','f2','f3','f4','memo1'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('date').value=new Date().toISOString().slice(0,10);
+  document.querySelector('input[name=roast][value="中煎り"]').checked=true;
+  ['acidity','bitter','body','sweet','aroma'].forEach(k=>{ document.getElementById('s-'+k).value=3; document.getElementById('v-'+k).textContent='3'; });
+  clearPhoto(); drawRadarPreview(); cardCanvas=null;
+  document.getElementById('preview-area').classList.remove('visible');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function downloadCurrentPDF(){
+  if(!cardCanvas) return;
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:[148,100]});
+  pdf.addImage(cardCanvas.toDataURL('image/png'),'PNG',0,0,148,100);
+  pdf.save(`coffee_${document.getElementById('shop').value||'card'}_${document.getElementById('date').value||''}.pdf`);
+}
+
+function setFilter(f,el){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active'); renderList();
+}
+
+function renderList(){
+  const filtered=entries.filter(e=>currentFilter==='fav'?e.fav:true);
+  document.getElementById('list-count').textContent=filtered.length+'件';
+  const el=document.getElementById('entry-list');
+  if(filtered.length===0){
+    el.innerHTML=`<div class="empty-state"><div class="es-icon">☕</div><div class="es-text">${currentFilter==='fav'?'お気に入りがありません':'記録がまだありません'}</div></div>`;
+    updateBulkBar(); return;
+  }
+  el.innerHTML=filtered.map(e=>{
+    const sel=selectedIds.has(e.id);
+    const thumb=e.photo?`<div class="entry-thumb"><img src="${e.photo}" alt=""></div>`:`<div class="entry-thumb">☕</div>`;
+    const memo=e.memo1||e.memo2||'';
+    return `<div class="entry-card${sel?' selected':''}">
+      ${thumb}
+      <div class="entry-body">
+        <div class="entry-shop">${e.shop||'—'}</div>
+        <div class="entry-item">${e.item||'—'}</div>
+        <div class="entry-meta"><span class="entry-date">${e.date||''}</span><span class="entry-roast">${e.roast}</span></div>
+        ${memo?`<div class="entry-memo">${memo}</div>`:''}
+      </div>
+      <div class="entry-actions">
+        <button class="fav-btn${e.fav?' on':''}" onclick="toggleFav('${e.id}')" title="お気に入り">★</button>
+        <button class="entry-edit-btn" onclick="openEditModal('${e.id}')">編集</button>
+        <button class="entry-del-btn"  onclick="openDeleteModal('${e.id}')" title="削除">🗑</button>
+        <div class="sel-check${sel?' checked':''}" onclick="toggleSelect('${e.id}')"></div>
+      </div>
+    </div>`;
+  }).join('');
+  updateBulkBar();
+}
+
+function toggleFav(id){ const e=entries.find(en=>en.id===id); if(e){ e.fav=!e.fav; saveEntries(); renderList(); } }
+function toggleSelect(id){ selectedIds.has(id)?selectedIds.delete(id):selectedIds.add(id); renderList(); }
+function clearSelection(){ selectedIds.clear(); renderList(); }
+function updateBulkBar(){
+  const bar=document.getElementById('bulk-bar');
+  bar.classList.toggle('visible',selectedIds.size>0);
+  document.getElementById('bulk-label').textContent=selectedIds.size+'件選択中';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 編集モーダル
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let editingId = null;
+let modalPhoto = null; // {img, src} or null
+
+function openEditModal(id){
+  const e=entries.find(en=>en.id===id); if(!e) return;
+  editingId=id;
+  modalPhoto=e.photo ? {src:e.photo} : null;
+
+  // フォームにデータセット
+  document.getElementById('m-shop').value    = e.shop||'';
+  document.getElementById('m-date').value    = e.date||'';
+  document.getElementById('m-item').value    = e.item||'';
+  document.getElementById('m-origin').value  = e.origin||'';
+  document.getElementById('m-process').value = e.process||'';
+  const roastEl=document.querySelector(`input[name="m-roast"][value="${e.roast}"]`);
+  if(roastEl) roastEl.checked=true;
+  ['f1','f2','f3','f4'].forEach((k,i)=>{ document.getElementById('m-'+k).value=(e.flavors||[])[i]||''; });
+  const vals=e.values||[3,3,3,3,3];
+  ['acidity','bitter','body','sweet','aroma'].forEach((k,i)=>{
+    document.getElementById('m-'+k).value=vals[i];
+    document.getElementById('mv-'+k).textContent=vals[i];
+  });
+  document.getElementById('m-memo1').value=e.memo1||'';
+
+  // 写真プレビュー
+  const area=document.getElementById('modal-photo-area');
+  if(e.photo){
+    area.innerHTML=`<div class="photo-preview-wrap" style="margin-bottom:14px"><img src="${e.photo}" alt="photo"><button class="photo-clear" onclick="clearModalPhoto()">✕</button></div>`;
+  } else {
+    resetModalPhotoArea();
+  }
+
+  document.getElementById('edit-modal').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function resetModalPhotoArea(){
+  document.getElementById('modal-photo-area').innerHTML=
+    `<div class="photo-upload" style="margin-bottom:14px"><input type="file" id="modal-photo-input" accept="image/*"><div class="ph-icon">📷</div><div class="ph-label">タップして写真を変更<br><span style="color:#C9956B;font-size:11px">JPG / PNG 対応</span></div></div>`;
+  bindModalPhotoInput();
+}
+
+function clearModalPhoto(){
+  modalPhoto=null; resetModalPhotoArea();
+}
+
+function bindModalPhotoInput(){
+  const inp=document.getElementById('modal-photo-input'); if(!inp) return;
+  inp.addEventListener('change',function(e){
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      const img=new Image();
+      img.onload=function(){
+        modalPhoto={img,src:ev.target.result};
+        document.getElementById('modal-photo-area').innerHTML=
+          `<div class="photo-preview-wrap" style="margin-bottom:14px"><img src="${ev.target.result}" alt="photo"><button class="photo-clear" onclick="clearModalPhoto()">✕</button></div>`;
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// モーダルスライダー連動
+['acidity','bitter','body','sweet','aroma'].forEach(k=>{
+  document.getElementById('m-'+k).addEventListener('input',function(){
+    document.getElementById('mv-'+k).textContent=this.value;
+  });
+});
+
+function closeEditModal(){
+  document.getElementById('edit-modal').classList.remove('open');
+  document.body.style.overflow=''; editingId=null; modalPhoto=null;
+}
+
+function saveEdit(){
+  const e=entries.find(en=>en.id===editingId); if(!e) return;
+  e.shop    = document.getElementById('m-shop').value.trim();
+  e.date    = document.getElementById('m-date').value;
+  e.item    = document.getElementById('m-item').value.trim();
+  e.origin  = document.getElementById('m-origin').value.trim();
+  e.process = document.getElementById('m-process').value.trim();
+  e.roast   = document.querySelector('input[name="m-roast"]:checked')?.value||'中煎り';
+  e.flavors = ['m-f1','m-f2','m-f3','m-f4'].map(id=>document.getElementById(id).value.trim());
+  e.values  = ['acidity','bitter','body','sweet','aroma'].map(k=>parseInt(document.getElementById('m-'+k).value));
+  e.memo1   = document.getElementById('m-memo1').value.trim();
+  if(modalPhoto) e.photo=modalPhoto.src;
+  else if(modalPhoto===null && editingId) { /* 写真クリア済みなら null のまま */ }
+  saveEntries(); closeEditModal(); renderList();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 削除モーダル
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let deletingId = null;
+
+function openDeleteModal(id){
+  const e=entries.find(en=>en.id===id); if(!e) return;
+  deletingId=id;
+  document.getElementById('delete-confirm-text').textContent=
+    `「${e.shop||'—'}  ${e.item||''}」を削除しますか？`;
+  document.getElementById('delete-modal').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeDeleteModal(){
+  document.getElementById('delete-modal').classList.remove('open');
+  document.body.style.overflow=''; deletingId=null;
+}
+
+function confirmDelete(){
+  entries=entries.filter(e=>e.id!==deletingId);
+  selectedIds.delete(deletingId);
+  saveEntries(); closeDeleteModal(); renderList();
+}
+
+// オーバーレイ外クリックで閉じる
+['edit-modal','delete-modal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){
+    if(e.target===this) id==='edit-modal'?closeEditModal():closeDeleteModal();
+  });
+});
+
+async function exportSelectedPDF(){
+  if(!selectedIds.size) return;
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:[148,100]});
+  const sel=entries.filter(e=>selectedIds.has(e.id));
+  for(let i=0;i<sel.length;i++){
+    const en=sel[i]; let imgEl=null;
+    if(en.photo){ imgEl=await new Promise(res=>{ const img=new Image(); img.onload=()=>res(img); img.src=en.photo; }); }
+    const cv=buildCardCanvas(en,imgEl);
+    if(i>0) pdf.addPage([148,100],'landscape');
+    pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,148,100);
+  }
+  pdf.save(`coffee_journal_${sel.length}cards.pdf`);
+}
+</script>
+</body>
+</html>
